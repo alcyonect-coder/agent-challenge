@@ -1,4 +1,5 @@
 # Builders' Challenge #3: AI Agents 102
+
 **Presented by Nosana and Mastra**
 
 ![Agent](./assets/NosanaBuildersChallenge03.jpg)
@@ -13,7 +14,9 @@ Build and deploy intelligent AI agents using the **Mastra framework** on the **N
 
 ### What You'll Build
 
+hh
 Create an AI agent that performs real-world tasks using:
+
 - **Mastra framework** for agent orchestration
 - **Tool calling** to interact with external services
 - **MCP (Model Context Protocol)** for enhanced capabilities
@@ -99,6 +102,7 @@ ollama serve
 ```
 
 Edit your `.env`:
+
 ```env
 OLLAMA_API_URL=http://127.0.0.1:11434/api
 MODEL_NAME_AT_ENDPOINT=qwen3:0.6b
@@ -115,6 +119,7 @@ OPENAI_API_KEY=your-key-here
 ## 🏗️ Implementation Timeline
 
 **Important Dates:**
+
 - Start Challenge: 10 October
 - Submission Deadline: 24 October
 - Winners Announced: 31 October
@@ -136,7 +141,7 @@ OPENAI_API_KEY=your-key-here
 docker build -t yourusername/agent-challenge:latest .
 
 # Test locally first
-docker run -p 3000:3000 yourusername/agent-challenge:latest 
+docker run -p 3000:3000 yourusername/agent-challenge:latest
 
 # Push to Docker Hub
 docker login
@@ -144,6 +149,7 @@ docker push yourusername/agent-challenge:latest
 ```
 
 ### Phase 3: Deployment to Nosana
+
 1. **Deploy your complete stack**: The provided `Dockerfile` will deploy:
    - Your Mastra agent
    - Your frontend interface
@@ -154,6 +160,7 @@ docker push yourusername/agent-challenge:latest
 ### Phase 4: Video Demo
 
 Record a 1-3 minute video demonstrating:
+
 - Your agent **running on Nosana** (show the deployed version!)
 - Key features and functionality
 - The frontend interface in action
@@ -163,6 +170,7 @@ Record a 1-3 minute video demonstrating:
 ### Phase 5: Documentation
 
 Update this README with:
+
 - Agent description and purpose
 - What tools/APIs your agent uses
 - Setup instructions
@@ -201,8 +209,8 @@ Your submission **must** include:
 
 ## 🚀 Deploying to Nosana
 
-
 ### Using Nosana Dashboard
+
 1. Open [Nosana Dashboard](https://dashboard.nosana.com/deploy)
 2. Click `Expand` to open the job definition editor
 3. Edit `nos_job_def/nosana_mastra.json` with your Docker image:
@@ -216,6 +224,7 @@ Your submission **must** include:
 6. Click `Deploy`
 
 ### Using Nosana CLI (Alternative)
+
 ```bash
 npm install -g @nosana/cli
 nosana job post --file ./nos_job_def/nosana_mastra.json --market nvidia-3090 --timeout 30
@@ -226,23 +235,27 @@ nosana job post --file ./nos_job_def/nosana_mastra.json --market nvidia-3090 --t
 Submissions evaluated on 4 key areas (25% each):
 
 ### 1. Innovation 🎨
+
 - Originality of agent concept
 - Creative use of AI capabilities
 - Unique problem-solving approach
 
 ### 2. Technical Implementation 💻
+
 - Code quality and organization
 - Proper use of Mastra framework
 - Efficient tool implementation
 - Error handling and robustness
 
 ### 3. Nosana Integration ⚡
+
 - Successful deployment on Nosana
 - Resource efficiency
 - Stability and performance
 - Proper containerization
 
 ### 4. Real-World Impact 🌍
+
 - Practical use cases
 - Potential for adoption
 - Clear value proposition
@@ -251,6 +264,7 @@ Submissions evaluated on 4 key areas (25% each):
 ## 🎁 Prizes
 
 **Top 10 submissions will be rewarded:**
+
 - 🥇 1st Place: $1,000 USDC
 - 🥈 2nd Place: $750 USDC
 - 🥉 3rd Place: $450 USDC
@@ -274,7 +288,8 @@ For more information, check out the following resources:
 ## 🆘 Support & Community
 
 ### Get Help
-- **Discord**: Join [Nosana Discord](https://nosana.com/discord) 
+
+- **Discord**: Join [Nosana Discord](https://nosana.com/discord)
 - **Dedicated Channel**: [Builders Challenge Dev Chat](https://discord.com/channels/236263424676331521/1354391113028337664)
 - **Twitter**: Follow [@nosana_ai](https://x.com/nosana_ai) for live updates
 
@@ -297,11 +312,10 @@ Subscribe to our newsletter and never miss an update.
 👉 [ Join the Nosana Builders Newsletter ](https://e86f0b9c.sibforms.com/serve/MUIFALaEjtsXB60SDmm1_DHdt9TOSRCFHOZUSvwK0ANbZDeJH-sBZry2_0YTNi1OjPt_ZNiwr4gGC1DPTji2zdKGJos1QEyVGBzTq_oLalKkeHx3tq2tQtzghyIhYoF4_sFmej1YL1WtnFQyH0y1epowKmDFpDz_EdGKH2cYKTleuTu97viowkIIMqoDgMqTD0uBaZNGwjjsM07T)
 
 Be the first to know about:
+
 - 🧠 Upcoming Builders Challenges
 - 💸 New reward opportunities
 - ⚙ Product updates and feature drops
 - 🎁 Early-bird credits and partner perks
 
 Join the Nosana builder community today — and build the future of decentralized AI.
-
-

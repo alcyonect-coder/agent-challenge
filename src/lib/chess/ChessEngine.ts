@@ -41,7 +41,6 @@ export class ChessEngine {
       if (move) this.moveHistory.push(this.game.fen());
       return move;
     } catch {
-      // swallow: don’t log; just signal failure
       return null;
     }
   }

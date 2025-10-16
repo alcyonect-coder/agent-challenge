@@ -1,7 +1,7 @@
 {
-  "name": "territory-ai-game",
+  "name": " chess-ai-tournament",
   "version": "0.1.0",
-  "description": "Paper.io-style AI agent game for Nosana Builders Challenge",
+  "description": "Pro AI Chess player agent game for Nosana Builders Challenge",
   "private": true,
   "scripts": {
     "dev:agent": "mastra dev",
@@ -13,7 +13,7 @@
     "start:agent": "mastra start",
     "lint": "next lint",
     "build": "mastra build && next build",
-    "start": "concurrently \"npm:start:agent\" \"npm:start:ui\""
+    "start": "concurrently \"bun run start:agent\" \"bun run start:ui\""
   },
   "dependencies": {
     "@ag-ui/mastra": "0.1.0",

@@ -8,7 +8,7 @@
     {
       "id": "agents",
       "args": {
-        "image": "djmbritt/agent-challenge:latest",
+        "image": "alcyone864/agent-challenge:latest",
         "expose": 3000,
         "env": {
           "NOS_OLLAMA_API_URL": "http://%%ops.ollama.host%%:11434/api",
@@ -17,9 +17,7 @@
       },
       "execution": {
         "group": "run",
-        "depends_on": [
-          "ollama"
-        ]
+        "depends_on": ["ollama"]
       },
       "type": "container/run"
     },
@@ -31,10 +29,7 @@
         "cmd": [
           "ollama serve & sleep 5 && ollama pull $MODEL && tail -f /dev/null"
         ],
-        "entrypoint": [
-          "/bin/sh",
-          "-c"
-        ],
+        "entrypoint": ["/bin/sh", "-c"],
         "resources": [
           {
             "url": "https://models.nosana.io/ollama/qwen3/8b",

@@ -1,52 +1,55 @@
 # syntax=docker/dockerfile:1
 
-FROM node:lts AS build
-
-RUN corepack enable
-
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-
-# Disable Analytics/Telemetry
-ENV DISABLE_TELEMETRY=true
-ENV POSTHOG_DISABLED=true
-ENV MASTRA_TELEMETRY_DISABLED=true
-ENV DO_NOT_TRACK=1
-
-# Ensure logs are visible (disable buffering)
-ENV PYTHONUNBUFFERED=1
+##################################
+# 1. Build stage (compilation)  #
+##################################
+FROM oven/bun:1 AS build
 
 WORKDIR /app
 
-COPY pnpm-lock.yaml ./
+# Désactivation de la télémétrie et logs non bufferisés
+ENV DISABLE_TELEMETRY=true \
+    POSTHOG_DISABLED=true \
+    MASTRA_TELEMETRY_DISABLED=true \
+    DO_NOT_TRACK=1 \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PYTHONUNBUFFERED=1
 
-RUN --mount=type=cache,target=/pnpm/store \
-  pnpm fetch --frozen-lockfile
+# Copier package.json et bun.lockb* pour maximiser le cache
+COPY package.json bun.lockb* ./
 
-COPY package.json ./
+# Installer les dépendances
+RUN bun install --frozen-lockfile
 
-RUN --mount=type=cache,target=/pnpm/store \
-  pnpm install --frozen-lockfile --prod --offline
-
+# Copier le reste du code et builder
 COPY . .
+RUN bun run build
 
-RUN pnpm build
-
-FROM node:lts AS runtime
-
-RUN groupadd -g 1001 appgroup && \
-  useradd -u 1001 -g appgroup -m -d /app -s /bin/false appuser
+##################################
+# 2. Runtime stage (exécution)   #
+##################################
+FROM oven/bun:1 AS runtime
 
 WORKDIR /app
 
-COPY --from=build --chown=appuser:appgroup /app ./
+# Créer un utilisateur non-root
+RUN groupadd -g 1001 appgroup && \
+    useradd -u 1001 -g appgroup -m -d /app -s /bin/false appuser
 
-ENV NODE_ENV=production \
-  NODE_OPTIONS="--enable-source-maps"
+# Pré-créer le dossier .config pour Mastra et lui appliquer les bons droits
+RUN mkdir -p /app/.config && \
+    chown -R appuser:appgroup /app/.config
+
+# Copier l’app compilée depuis build
+COPY --from=build --chown=appuser:appgroup /app .
+
+# Variables d’environnement pour la prod
+ENV NODE_ENV=production
 
 USER appuser
 
 EXPOSE 3000
 EXPOSE 4111
 
-ENTRYPOINT ["npm", "start"]
+# Lancement avec le CLI Bun inclus dans l’image
+ENTRYPOINT ["bun","run","start"]

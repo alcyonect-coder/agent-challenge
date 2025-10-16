@@ -13,6 +13,22 @@ type MoveEntry = {
   reasoning: string;
   side: "white" | "black";
 };
+type Promotion = "q" | "r" | "b" | "n";
+type LegalMove = {
+  from: Square;
+  to: Square;
+  san: string;
+  promotion?: Promotion;
+};
+
+type AIMoveResponse = {
+  success: boolean;
+  index?: number;
+  uci?: string;
+  san?: string;
+  reasoning?: string;
+  error?: string;
+};
 
 export default function Home() {
   const [engine, setEngine] = useState<ChessEngine>(() => new ChessEngine());
@@ -26,14 +42,67 @@ export default function Home() {
 
   const [autoPlay, setAutoPlay] = useState(false);
   const [mode, setMode] = useState<"human-vs-ai" | "ai-vs-ai">("human-vs-ai");
+  // Quand un pion atteint la 8e (ou 1re) rangée, on stocke le coup en attente
+  const [pendingPromotion, setPendingPromotion] = useState<{
+    from: Square;
+    to: Square;
+    side: "white" | "black";
+  } | null>(null);
 
   const flashTurnOnce = () => {
     setFlashTurn(true);
     setTimeout(() => setFlashTurn(false), 250);
   };
 
+  const startPromotion = (
+    from: Square,
+    to: Square,
+    side: "white" | "black"
+  ) => {
+    setPendingPromotion({ from, to, side });
+  };
+
+  const confirmPromotion = (p: Promotion) => {
+    if (!pendingPromotion) return;
+    const { from, to, side } = pendingPromotion;
+
+    // applique la promotion via le moteur
+    const applied = engine.makeMove(from, to, p);
+    if (!applied) {
+      flashTurnOnce();
+      setPendingPromotion(null);
+      return;
+    }
+
+    setEngine(new ChessEngine(engine.getFen()));
+    const label = applied.san ?? `${from}${to}${p}`;
+    setMoveHistory((prev) => [
+      ...prev,
+      { move: label, reasoning: "👤 Human promotion", side },
+    ]);
+    setPendingPromotion(null);
+
+    // enchaîner l'IA si on est en human-vs-ai
+    if (mode === "human-vs-ai") setTimeout(() => void makeAIMove(), 500);
+  };
+
+  const cancelPromotion = () => setPendingPromotion(null);
+
   const handleMove = (from: Square, to: Square): boolean => {
     const moverSide: "white" | "black" = engine.getCurrentTurn();
+    // 1) détecter si (from, to) est un coup de promotion possible
+    //    on cherche dans les coups légaux un coup EXACT avec promotion définie
+    const legalNow = engine.getAllLegalMoves() as LegalMove[];
+    const promoCandidate = legalNow.find(
+      (m) => m.from === from && m.to === to && m.promotion
+    );
+    if (promoCandidate) {
+      // ouvrir l’overlay de choix
+      startPromotion(from, to, moverSide);
+      return false; // on n’applique pas encore le coup
+    }
+
+    // 2) sinon coup normal (inchangé)
     const move = engine.makeMove(from, to);
     if (!move) {
       flashTurnOnce();
@@ -44,7 +113,7 @@ export default function Home() {
       ...prev,
       { move: move.san, reasoning: "👤 Human move", side: moverSide },
     ]);
-    if (mode === "human-vs-ai") setTimeout(makeAIMove, 500);
+    if (mode === "human-vs-ai") setTimeout(() => void makeAIMove(), 500);
     return true;
   };
 
@@ -71,7 +140,7 @@ export default function Home() {
           isCheck: engine.isCheck(),
         }),
       });
-      const data = await res.json();
+      const data: AIMoveResponse = await res.json();
       if (!data.success) throw new Error(data.error);
 
       // ignore if position has changed while we were waiting
@@ -79,15 +148,15 @@ export default function Home() {
 
       // Prefer index/uci from server (AI chose), then apply locally
       if (typeof data.index === "number") {
-        const legalNow = engine.getAllLegalMoves(); // re-pull to be extra safe
+        const legalNow: LegalMove[] = engine.getAllLegalMoves() as LegalMove[];
         const choice = legalNow[data.index];
         if (!choice) throw new Error(`Index out of range: ${data.index}`);
 
         // Apply by coordinates to avoid SAN pitfalls
         const applied = engine.makeMove(
-          choice.from as any,
-          choice.to as any,
-          choice.promotion as any
+          choice.from,
+          choice.to,
+          choice.promotion
         );
         if (!applied)
           throw new Error(`Illegal move at apply time (idx=${data.index})`);
@@ -103,16 +172,16 @@ export default function Home() {
         ]);
       } else if (data.uci) {
         // fallback if you return uci
-        const legalNow = engine.getAllLegalMoves();
-        const choice = legalNow.find((m) => {
-          const u = m.from + m.to + (m.promotion ?? "");
-          return u === data.uci;
-        });
+        const legalNow: LegalMove[] = engine.getAllLegalMoves() as LegalMove[];
+        const choice = legalNow.find(
+          (m) => m.from + m.to + (m.promotion ?? "") === data.uci
+        );
+
         if (!choice) throw new Error(`UCI not legal: ${data.uci}`);
         const applied = engine.makeMove(
-          choice.from as any,
-          choice.to as any,
-          choice.promotion as any
+          choice.from,
+          choice.to,
+          choice.promotion
         );
         if (!applied) throw new Error(`Illegal UCI at apply time: ${data.uci}`);
 
@@ -126,40 +195,45 @@ export default function Home() {
           },
         ]);
       } else {
-        // (If you keep SAN support for backward-compat)
-        const applied = engine.makeMoveSAN(data.san);
-        if (!applied) throw new Error(`Illegal SAN from AI: ${data.san}`);
+        // --- SAN fallback ---
+        if (!data.san) {
+          throw new Error("AI did not return SAN move");
+        }
+        const san = data.san as string;
+
+        const applied = engine.makeMoveSAN(san); // data.san est sûr ici
+        if (!applied) throw new Error(`Illegal SAN from AI: ${san}`);
+
         setEngine(new ChessEngine(engine.getFen()));
         setMoveHistory((prev) => [
           ...prev,
           {
-            move: data.san,
-            reasoning: `🤖 ${agentType.toUpperCase()}: ${data.reasoning}`,
+            move: san, // string garanti
+            reasoning: `🤖 ${agentType.toUpperCase()}: ${data.reasoning ?? "no reasoning"}`,
             side: turn,
           },
         ]);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("AI move failed:", e);
+      const msg = e instanceof Error ? e.message : String(e);
       flashTurnOnce();
-
       setMoveHistory((prev) => [
         ...prev,
         {
           move: "—",
-          reasoning: `⚠️ AI error (${(e as Error).message}). Retrying...`,
+          reasoning: `⚠️ AI error (${msg}). Retrying...`,
           side: turn,
         },
       ]);
       if (attempt < 3) {
-        setTimeout(() => makeAIMove(attempt + 1), attempt * 800);
+        setTimeout(() => void makeAIMove(attempt + 1), attempt * 800);
         return;
       }
     } finally {
       setIsThinking(false);
     }
   };
-
   useEffect(() => {
     if (autoPlay && !engine.isGameOver() && !isThinking) {
       const timer = setTimeout(() => makeAIMove(), 2000);
@@ -335,7 +409,7 @@ export default function Home() {
 
                 {!isHumanTurn && !autoPlay && (
                   <button
-                    onClick={makeAIMove}
+                    onClick={() => void makeAIMove()}
                     disabled={isThinking || engine.isGameOver()}
                     className="w-full p-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
@@ -452,6 +526,51 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {pendingPromotion && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-80">
+              <h3 className="text-lg font-semibold mb-4">Choose promotion</h3>
+              <div className="grid grid-cols-4 gap-3">
+                <button
+                  onClick={() => confirmPromotion("q")}
+                  className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold"
+                  title="Queen"
+                >
+                  ♕
+                </button>
+                <button
+                  onClick={() => confirmPromotion("r")}
+                  className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold"
+                  title="Rook"
+                >
+                  ♖
+                </button>
+                <button
+                  onClick={() => confirmPromotion("b")}
+                  className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold"
+                  title="Bishop"
+                >
+                  ♗
+                </button>
+                <button
+                  onClick={() => confirmPromotion("n")}
+                  className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold"
+                  title="Knight"
+                >
+                  ♘
+                </button>
+              </div>
+
+              <button
+                onClick={cancelPromotion}
+                className="mt-5 w-full px-4 py-2 rounded-lg bg-gray-600 text-white hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center mt-8 text-gray-500 text-sm">

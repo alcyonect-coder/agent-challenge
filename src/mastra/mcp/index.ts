@@ -1,13 +1,18 @@
-import { MCPServer } from "@mastra/mcp"
-import { weatherTool } from "../tools";
-import { weatherAgent } from "../agents";
+// src/mastra/mcp/index.ts
+import { MCPServer } from "@mastra/mcp";
+
+import { chessTools } from "../tools";
+import { aggressiveAgent } from "../agents/aggressiveAgent";
+import { defensiveAgent } from "../agents/defensiveAgent";
+import { strategicAgent } from "../agents/strategicAgent";
 
 export const server = new MCPServer({
-  name: "My Custom Server",
+  name: "Chess AI Tournament Server",
   version: "1.0.0",
-  tools: { weatherTool },
-  agents: { weatherAgent }, // this agent will become tool "ask_weatherAgent"
-  // workflows: {
-  // dataProcessingWorkflow, // this workflow will become tool "run_dataProcessingWorkflow"
-  // }
+  tools: chessTools,
+  agents: {
+    strategicAgent, // becomes tool "ask_strategicAgent"
+    aggressiveAgent, // becomes tool "ask_aggressiveAgent"
+    defensiveAgent, // becomes tool "ask_defensiveAgent"
+  },
 });

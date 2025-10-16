@@ -1,256 +1,464 @@
+// src/app/page.tsx - NO COPILOTKIT VERSION
 "use client";
 
-import { useCoAgent, useCopilotAction } from "@copilotkit/react-core";
-import { CopilotKitCSSProperties, CopilotSidebar } from "@copilotkit/react-ui";
-import { useState } from "react";
-import { AgentState as AgentStateSchema } from "@/mastra/agents";
-import { z } from "zod";
-import { WeatherToolResult } from "@/mastra/tools";
+import CustomChessBoard from "@/components/CustomChessBoard";
+import { ChessEngine } from "@/lib/chess/ChessEngine";
+import { Square } from "chess.js";
+import { Brain, Play, RotateCcw, Shield, Swords, User } from "lucide-react";
+import { useEffect, useState } from "react";
 
-type AgentState = z.infer<typeof AgentStateSchema>;
+type AgentType = "strategic" | "aggressive" | "defensive" | "human";
+type MoveEntry = {
+  move: string;
+  reasoning: string;
+  side: "white" | "black";
+};
 
-export default function CopilotKitPage() {
-  const [themeColor, setThemeColor] = useState("#6366f1");
+export default function Home() {
+  const [engine, setEngine] = useState<ChessEngine>(() => new ChessEngine());
+  const [gameKey, setGameKey] = useState(0);
+  const [isThinking, setIsThinking] = useState(false);
+  const [whiteAgent, setWhiteAgent] = useState<AgentType>("human");
+  const [blackAgent, setBlackAgent] = useState<AgentType>("strategic");
+  const [flashTurn, setFlashTurn] = useState(false);
 
-  // 🪁 Frontend Actions: https://docs.copilotkit.ai/guides/frontend-actions
-  useCopilotAction({
-    name: "setThemeColor",
-    parameters: [{
-      name: "themeColor",
-      description: "The theme color to set. Make sure to pick nice colors.",
-      required: true,
-    }],
-    handler({ themeColor }) {
-      setThemeColor(themeColor);
-    },
-  });
+  const [moveHistory, setMoveHistory] = useState<Array<MoveEntry>>([]);
+
+  const [autoPlay, setAutoPlay] = useState(false);
+  const [mode, setMode] = useState<"human-vs-ai" | "ai-vs-ai">("human-vs-ai");
+
+  const flashTurnOnce = () => {
+    setFlashTurn(true);
+    setTimeout(() => setFlashTurn(false), 250);
+  };
+
+  const handleMove = (from: Square, to: Square): boolean => {
+    const moverSide: "white" | "black" = engine.getCurrentTurn();
+    const move = engine.makeMove(from, to);
+    if (!move) {
+      flashTurnOnce();
+      return false;
+    }
+    setEngine(new ChessEngine(engine.getFen()));
+    setMoveHistory((prev) => [
+      ...prev,
+      { move: move.san, reasoning: "👤 Human move", side: moverSide },
+    ]);
+    if (mode === "human-vs-ai") setTimeout(makeAIMove, 500);
+    return true;
+  };
+
+  const makeAIMove = async (attempt = 1) => {
+    if (engine.isGameOver() || isThinking) return;
+
+    const turn = engine.getCurrentTurn();
+    const agentType: AgentType = turn === "white" ? whiteAgent : blackAgent;
+    if (agentType === "human") return;
+
+    setIsThinking(true);
+    const fenAtStart = engine.getFen();
+
+    try {
+      // src/app/page.tsx (inside makeAIMove)
+      const res = await fetch("/api/chess-move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentType,
+          fen: fenAtStart,
+          legalMovesVerbose: engine.getAllLegalMoves(), // <— verbose
+          materialBalance: engine.evaluatePosition(),
+          isCheck: engine.isCheck(),
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      // ignore if position has changed while we were waiting
+      if (engine.getFen() !== fenAtStart) return;
+
+      // Prefer index/uci from server (AI chose), then apply locally
+      if (typeof data.index === "number") {
+        const legalNow = engine.getAllLegalMoves(); // re-pull to be extra safe
+        const choice = legalNow[data.index];
+        if (!choice) throw new Error(`Index out of range: ${data.index}`);
+
+        // Apply by coordinates to avoid SAN pitfalls
+        const applied = engine.makeMove(
+          choice.from as any,
+          choice.to as any,
+          choice.promotion as any
+        );
+        if (!applied)
+          throw new Error(`Illegal move at apply time (idx=${data.index})`);
+
+        setEngine(new ChessEngine(engine.getFen()));
+        setMoveHistory((prev) => [
+          ...prev,
+          {
+            move: choice.san,
+            reasoning: `🤖 ${agentType.toUpperCase()}: ${data.reasoning}`,
+            side: turn,
+          },
+        ]);
+      } else if (data.uci) {
+        // fallback if you return uci
+        const legalNow = engine.getAllLegalMoves();
+        const choice = legalNow.find((m) => {
+          const u = m.from + m.to + (m.promotion ?? "");
+          return u === data.uci;
+        });
+        if (!choice) throw new Error(`UCI not legal: ${data.uci}`);
+        const applied = engine.makeMove(
+          choice.from as any,
+          choice.to as any,
+          choice.promotion as any
+        );
+        if (!applied) throw new Error(`Illegal UCI at apply time: ${data.uci}`);
+
+        setEngine(new ChessEngine(engine.getFen()));
+        setMoveHistory((prev) => [
+          ...prev,
+          {
+            move: choice.san,
+            reasoning: `🤖 ${agentType.toUpperCase()}: ${data.reasoning}`,
+            side: turn,
+          },
+        ]);
+      } else {
+        // (If you keep SAN support for backward-compat)
+        const applied = engine.makeMoveSAN(data.san);
+        if (!applied) throw new Error(`Illegal SAN from AI: ${data.san}`);
+        setEngine(new ChessEngine(engine.getFen()));
+        setMoveHistory((prev) => [
+          ...prev,
+          {
+            move: data.san,
+            reasoning: `🤖 ${agentType.toUpperCase()}: ${data.reasoning}`,
+            side: turn,
+          },
+        ]);
+      }
+    } catch (e) {
+      console.error("AI move failed:", e);
+      flashTurnOnce();
+
+      setMoveHistory((prev) => [
+        ...prev,
+        {
+          move: "—",
+          reasoning: `⚠️ AI error (${(e as Error).message}). Retrying...`,
+          side: turn,
+        },
+      ]);
+      if (attempt < 3) {
+        setTimeout(() => makeAIMove(attempt + 1), attempt * 800);
+        return;
+      }
+    } finally {
+      setIsThinking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (autoPlay && !engine.isGameOver() && !isThinking) {
+      const timer = setTimeout(() => makeAIMove(), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPlay, engine, isThinking]);
+
+  const handleRestart = () => {
+    setEngine(new ChessEngine());
+    setGameKey((prev) => prev + 1);
+    setMoveHistory([]);
+    setAutoPlay(false);
+  };
+
+  const handleModeChange = (newMode: "human-vs-ai" | "ai-vs-ai") => {
+    setMode(newMode);
+    if (newMode === "human-vs-ai") {
+      setWhiteAgent("human");
+      // keep the current blackAgent (user can choose)
+    } else {
+      setWhiteAgent("strategic");
+      setBlackAgent("aggressive");
+    }
+    handleRestart();
+  };
+
+  const currentAgent =
+    engine.getCurrentTurn() === "white" ? whiteAgent : blackAgent;
+  const isHumanTurn = currentAgent === "human";
+
+  const sideRowClass = (side: "white" | "black") =>
+    side === "white"
+      ? "border-sky-400 bg-sky-50 text-sky-900"
+      : "border-violet-400 bg-violet-50 text-violet-900";
 
   return (
-    <main style={{ "--copilot-kit-primary-color": themeColor } as CopilotKitCSSProperties}>
-      <YourMainContent themeColor={themeColor} />
-      <CopilotSidebar
-        clickOutsideToClose={false}
-        defaultOpen={true}
-        labels={{
-          title: "Popup Assistant",
-          initial: "👋 Hi, there! You're chatting with an agent. This agent comes with a few tools to get you started.\n\nFor example you can try:\n- **Frontend Tools**: \"Set the theme to orange\"\n- **Shared State**: \"Write a proverb about AI\"\n- **Generative UI**: \"Get the weather in SF\"\n\nAs you interact with the agent, you'll see the UI update in real-time to reflect the agent's **state**, **tool calls**, and **progress**."
-        }}
-      />
-    </main>
-  );
-}
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-8 px-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-5xl font-bold text-gray-800 mb-2">
+            ♟️ Chess AI Tournament
+          </h1>
+          <p className="text-lg text-gray-600">
+            Mastra AI Agents Playing Strategic Chess
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            Nosana Builders Challenge: Agents 102
+          </p>
+        </div>
 
-function YourMainContent({ themeColor }: { themeColor: string }) {
-  // 🪁 Shared State: https://docs.copilotkit.ai/coagents/shared-state
-  const { state, setState } = useCoAgent<AgentState>({
-    name: "weatherAgent",
-    initialState: {
-      proverbs: [
-        "CopilotKit may be new, but its the best thing since sliced bread.",
-      ],
-    },
-  })
+        {/* Mode Selector */}
+        <div className="flex justify-center gap-4 mb-6">
+          <button
+            onClick={() => handleModeChange("human-vs-ai")}
+            disabled={autoPlay || isThinking}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 disabled:opacity-50 ${
+              mode === "human-vs-ai"
+                ? "bg-purple-600 text-white shadow-lg"
+                : "bg-white text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <User className="w-5 h-5" />
+            Human vs AI
+          </button>
+          <button
+            onClick={() => handleModeChange("ai-vs-ai")}
+            disabled={autoPlay || isThinking}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 disabled:opacity-50 ${
+              mode === "ai-vs-ai"
+                ? "bg-blue-600 text-white shadow-lg"
+                : "bg-white text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <Brain className="w-5 h-5" />
+            AI vs AI
+          </button>
+        </div>
 
-  //🪁 Generative UI: https://docs.copilotkit.ai/coagents/generative-ui
-  useCopilotAction({
-    name: "weatherTool",
-    description: "Get the weather for a given location.",
-    available: "frontend",
-    parameters: [
-      { name: "location", type: "string", required: true },
-    ],
-    render: ({ args, result, status }) => {
-      return <WeatherCard
-        location={args.location}
-        themeColor={themeColor}
-        result={result}
-        status={status}
-      />
-    },
-  });
+        {isHumanTurn && mode === "human-vs-ai" && !engine.isGameOver() && (
+          <div className="text-center mb-4 p-4 bg-yellow-100 rounded-lg animate-pulse">
+            <p className="text-sm font-semibold text-yellow-800">
+              🎮 Your turn! Drag a piece to move
+            </p>
+          </div>
+        )}
 
-  useCopilotAction({
-    name: "updateWorkingMemory",
-    available: "frontend",
-    render: ({ args }) => {
-      return <div style={{ backgroundColor: themeColor }} className="rounded-2xl max-w-md w-full text-white p-4">
-        <p>✨ Memory updated</p>
-        <details className="mt-2">
-          <summary className="cursor-pointer text-white">See updates</summary>
-          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }} className="overflow-x-auto text-sm bg-white/20 p-4 rounded-lg mt-2">
-            {JSON.stringify(args, null, 2)}
-          </pre>
-        </details>
-      </div>
-    },
-  });
-
-  return (
-    <div
-      style={{ backgroundColor: themeColor }}
-      className="h-screen w-screen flex justify-center items-center flex-col transition-colors duration-300"
-    >
-      <div className="bg-white/20 backdrop-blur-md p-8 rounded-2xl shadow-xl max-w-2xl w-full">
-        <h1 className="text-4xl font-bold text-white mb-2 text-center">Proverbs</h1>
-        <p className="text-gray-200 text-center italic mb-6">This is a demonstrative page, but it could be anything you want! 🪁</p>
-        <hr className="border-white/20 my-6" />
-        <div className="flex flex-col gap-3">
-          {state.proverbs?.map((proverb, index) => (
-            <div
-              key={index}
-              className="bg-white/15 p-4 rounded-xl text-white relative group hover:bg-white/20 transition-all"
-            >
-              <p className="pr-8">{proverb}</p>
-              <button
-                onClick={() => setState({
-                  ...state,
-                  proverbs: state.proverbs?.filter((_, i) => i !== index),
-                })}
-                className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity 
-                  bg-red-500 hover:bg-red-600 text-white rounded-full h-6 w-6 flex items-center justify-center"
-              >
-                ✕
-              </button>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Panel - Agent Selection */}
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <h2 className="text-xl font-bold mb-4">⬜ White Player</h2>
+              <div className="space-y-2">
+                {mode === "human-vs-ai" && (
+                  <div className="w-full p-3 rounded-lg flex items-center gap-3 bg-purple-600 text-white">
+                    <User className="w-5 h-5" />
+                    <span className="font-medium">Human (You)</span>
+                  </div>
+                )}
+                {mode === "ai-vs-ai" && (
+                  <>
+                    {(["strategic", "aggressive", "defensive"] as const).map(
+                      (type) => (
+                        <button
+                          key={type}
+                          onClick={() => setWhiteAgent(type)}
+                          disabled={autoPlay || isThinking}
+                          className={`w-full p-3 rounded-lg flex items-center gap-3 transition-all disabled:opacity-50 ${
+                            whiteAgent === type
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 hover:bg-gray-200"
+                          }`}
+                        >
+                          {type === "strategic" && (
+                            <Brain className="w-5 h-5" />
+                          )}
+                          {type === "aggressive" && (
+                            <Swords className="w-5 h-5" />
+                          )}
+                          {type === "defensive" && (
+                            <Shield className="w-5 h-5" />
+                          )}
+                          <span className="capitalize font-medium">{type}</span>
+                        </button>
+                      )
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
-        {state.proverbs?.length === 0 && <p className="text-center text-white/80 italic my-8">
-          No proverbs yet. Ask the assistant to add some!
-        </p>}
-      </div>
-    </div>
-  );
-}
 
-// Weather card component where the location and themeColor are based on what the agent
-// sets via tool calls.
-function WeatherCard({
-  location,
-  themeColor,
-  result,
-  status
-}: {
-  location?: string,
-  themeColor: string,
-  result: WeatherToolResult,
-  status: "inProgress" | "executing" | "complete"
-}) {
-  if (status !== "complete") {
-    return (
-      <div
-        className="rounded-xl shadow-xl mt-6 mb-4 max-w-md w-full"
-        style={{ backgroundColor: themeColor }}
-      >
-        <div className="bg-white/20 p-4 w-full">
-          <p className="text-white animate-pulse">Loading weather for {location}...</p>
-        </div>
-      </div>
-    )
-  }
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <h2 className="text-xl font-bold mb-4">⬛ Black Player</h2>
+              <div className="space-y-2">
+                {(["strategic", "aggressive", "defensive"] as const).map(
+                  (type) => (
+                    <button
+                      key={type}
+                      onClick={() => setBlackAgent(type)}
+                      disabled={autoPlay || isThinking}
+                      className={`w-full p-3 rounded-lg flex items-center gap-3 transition-all disabled:opacity-50 ${
+                        blackAgent === type
+                          ? "bg-gray-800 text-white"
+                          : "bg-gray-100 hover:bg-gray-200"
+                      }`}
+                    >
+                      {type === "strategic" && <Brain className="w-5 h-5" />}
+                      {type === "aggressive" && <Swords className="w-5 h-5" />}
+                      {type === "defensive" && <Shield className="w-5 h-5" />}
+                      <span className="capitalize font-medium">{type}</span>
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
 
-  return (
-    <div
-      style={{ backgroundColor: themeColor }}
-      className="rounded-xl shadow-xl mt-6 mb-4 max-w-md w-full"
-    >
-      <div className="bg-white/20 p-4 w-full">
-        <div className="flex items-center justify-between">
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <h2 className="text-xl font-bold mb-4">🎮 Controls</h2>
+              <div className="space-y-2">
+                {mode === "ai-vs-ai" && (
+                  <button
+                    onClick={() => setAutoPlay(!autoPlay)}
+                    disabled={engine.isGameOver()}
+                    className={`w-full p-3 rounded-lg flex items-center justify-center gap-2 font-bold disabled:opacity-50 ${
+                      autoPlay
+                        ? "bg-red-600 text-white hover:bg-red-700"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    }`}
+                  >
+                    <Play className="w-5 h-5" />
+                    {autoPlay ? "Pause Auto-Play" : "Start Auto-Play"}
+                  </button>
+                )}
+
+                {!isHumanTurn && !autoPlay && (
+                  <button
+                    onClick={makeAIMove}
+                    disabled={isThinking || engine.isGameOver()}
+                    className="w-full p-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isThinking ? "🤔 AI Thinking..." : "🎯 Make AI Move"}
+                  </button>
+                )}
+
+                <button
+                  onClick={handleRestart}
+                  className="w-full p-3 rounded-lg bg-gray-600 text-white font-bold hover:bg-gray-700 flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  New Game
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Center - Chess Board */}
           <div>
-            <h3 className="text-xl font-bold text-white capitalize">{location}</h3>
-            <p className="text-white">Current Weather</p>
+            <CustomChessBoard
+              key={gameKey}
+              engine={engine}
+              onMove={handleMove}
+              currentAgent={currentAgent}
+              isThinking={isThinking}
+              flashTurn={flashTurn}
+            />
           </div>
-          <WeatherIcon conditions={result?.conditions} />
+
+          {/* Right Panel - Game Info */}
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <h2 className="text-xl font-bold mb-4">📊 Game Status</h2>
+              <div className="space-y-2 text-sm">
+                <p>
+                  <strong>Mode:</strong>{" "}
+                  {mode === "human-vs-ai" ? "👤 Human vs AI" : "🤖 AI vs AI"}
+                </p>
+                <p>
+                  <strong>Turn:</strong>{" "}
+                  {engine.getCurrentTurn() === "white"
+                    ? "⬜ White"
+                    : "⬛ Black"}
+                </p>
+                <p>
+                  <strong>Material:</strong>{" "}
+                  {engine.evaluatePosition() > 0
+                    ? `⬜ +${engine.evaluatePosition()}`
+                    : engine.evaluatePosition() < 0
+                      ? `⬛ ${engine.evaluatePosition()}`
+                      : "⚖️ Equal"}
+                </p>
+                <p>
+                  <strong>Moves:</strong> {moveHistory.length}
+                </p>
+                {engine.isCheck() && !engine.isGameOver() && (
+                  <p className="text-red-600 font-bold animate-pulse">
+                    ⚠️ CHECK!
+                  </p>
+                )}
+                {engine.isGameOver() && (
+                  <div className="mt-4 p-3 bg-green-100 rounded-lg">
+                    <p className="text-green-800 font-bold">🏁 GAME OVER</p>
+                    {engine.isCheckmate() && (
+                      <p className="text-sm mt-1">
+                        {engine.getCurrentTurn() === "white"
+                          ? "⬛ Black"
+                          : "⬜ White"}{" "}
+                        wins by checkmate!
+                      </p>
+                    )}
+                    {engine.isStalemate() && (
+                      <p className="text-sm mt-1">Draw by stalemate</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+              <h2 className="text-xl font-bold mb-4">📜 Move History</h2>
+              <div className="space-y-3">
+                {moveHistory.length === 0 ? (
+                  <p className="text-gray-500 text-sm text-center py-8">
+                    No moves yet.
+                    <br />
+                    {mode === "human-vs-ai"
+                      ? "Make your first move!"
+                      : "Start the game!"}
+                  </p>
+                ) : (
+                  moveHistory
+                    .slice()
+                    .reverse()
+                    .map((entry, idx) => (
+                      <div
+                        key={idx}
+                        className={`border-l-4 pl-3 py-2 rounded-sm ${sideRowClass(
+                          entry.side
+                        )}`}
+                      >
+                        <div className="font-bold text-sm">
+                          {" "}
+                          {entry.side === "white" ? "⬜" : "⬛"} {entry.move}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">
+                          {entry.reasoning}
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4 flex items-end justify-between">
-          <div className="text-3xl font-bold text-white">
-            <span className="">
-              {result?.temperature}° C
-            </span>
-            <span className="text-sm text-white/50">
-              {" / "}
-              {((result?.temperature * 9) / 5 + 32).toFixed(1)}° F
-            </span>
-          </div>
-          <div className="text-sm text-white">{result?.conditions}</div>
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-white">
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <p className="text-white text-xs">Humidity</p>
-              <p className="text-white font-medium">{result?.humidity}%</p>
-            </div>
-            <div>
-              <p className="text-white text-xs">Wind</p>
-              <p className="text-white font-medium">{result?.windSpeed} mph</p>
-            </div>
-            <div>
-              <p className="text-white text-xs">Feels Like</p>
-              <p className="text-white font-medium">{result?.feelsLike}°</p>
-            </div>
-          </div>
+        {/* Footer */}
+        <div className="text-center mt-8 text-gray-500 text-sm">
+          <p>Powered by Mastra AI Framework & Nosana Decentralized Compute</p>
+          <p className="mt-1">Model: Qwen3:8b via Ollama</p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function WeatherIcon({ conditions }: { conditions: string }) {
-  if (!conditions) return null;
-
-  if (
-    conditions.toLowerCase().includes("clear") ||
-    conditions.toLowerCase().includes("sunny")
-  ) {
-    return <SunIcon />;
-  }
-
-  if (
-    conditions.toLowerCase().includes("rain") ||
-    conditions.toLowerCase().includes("drizzle") ||
-    conditions.toLowerCase().includes("snow") ||
-    conditions.toLowerCase().includes("thunderstorm")
-  ) {
-    return <RainIcon />;
-  }
-
-  if (
-    conditions.toLowerCase().includes("fog") ||
-    conditions.toLowerCase().includes("cloud") ||
-    conditions.toLowerCase().includes("overcast")
-  ) {
-    return <CloudIcon />;
-  }
-
-  return <CloudIcon />;
-}
-
-// Simple sun icon for the weather card
-function SunIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-14 h-14 text-yellow-200">
-      <circle cx="12" cy="12" r="5" />
-      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" strokeWidth="2" stroke="currentColor" />
-    </svg>
-  );
-}
-
-function RainIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-14 h-14 text-blue-200">
-      {/* Cloud */}
-      <path d="M7 15a4 4 0 0 1 0-8 5 5 0 0 1 10 0 4 4 0 0 1 0 8H7z" fill="currentColor" opacity="0.8" />
-      {/* Rain drops */}
-      <path d="M8 18l2 4M12 18l2 4M16 18l2 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-    </svg>
-  );
-}
-
-function CloudIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-14 h-14 text-gray-200">
-      <path d="M7 15a4 4 0 0 1 0-8 5 5 0 0 1 10 0 4 4 0 0 1 0 8H7z" fill="currentColor" />
-    </svg>
+    </main>
   );
 }

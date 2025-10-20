@@ -21,6 +21,9 @@ COPY package.json bun.lockb* ./
 # Installer les dépendances
 RUN bun install --frozen-lockfile
 
+# Copier le .env AVANT de copier le reste
+COPY .env .env
+
 # Copier le reste du code et builder
 COPY . .
 RUN bun run build

@@ -11,9 +11,8 @@
 **Project Name**: MastraChess AI Tournament  
 **Repository**: [https://github.com/alcyonect-coder/agent-challenge](https://github.com/alcyonect-coder/agent-challenge)  
 **Docker Image**: alcyone864/agent-challenge:latest  
-**Discord**: [Your Discord Handle]  
-**Video Demo**: [YouTube/Loom Link]  
-**Twitter**: [@Alcyone_x]  
+**Video Demo**: https://youtu.be/YzQ4dGcnbmE?si=ZOY_N1BwAkkIKYKd
+**Twitter**: https://x.com/Alcyone_x/status/1980417117456592906
 **Solana Address**: 6THQP83GfxJQkKXoXakip7YLub2JV1G14YyxeZnoLzs7  
 **Deployer address**: E6AdyzNkH9ivdn5uaF8BMFUyFesmfJpoedX2BpQYxKC2  
 **Host address**: DqY4tVVpM7GtFihR1rNize344L1yV5vePSGUu2n3RU6m  

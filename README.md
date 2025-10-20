@@ -4,6 +4,21 @@
 
 ![Chess AI Tournament](./assets/NosanaBuildersChallenge03.jpg)
 
+![Deployed overview](./assets/chess.png)
+
+## 🏆 Challenge Submission Details
+
+**Project Name**: MastraChess AI Tournament  
+**Repository**: [https://github.com/alcyonect-coder/agent-challenge](https://github.com/alcyonect-coder/agent-challenge)  
+**Docker Image**: alcyone864/agent-challenge:latest
+**Discord**: [Your Discord Handle]  
+**Video Demo**: [YouTube/Loom Link]  
+**Twitter**: [@Alcyone_x]  
+**Solana Address**: 6THQP83GfxJQkKXoXakip7YLub2JV1G14YyxeZnoLzs7
+**Deployer address**: E6AdyzNkH9ivdn5uaF8BMFUyFesmfJpoedX2BpQYxKC2
+**Host address**: DqY4tVVpM7GtFihR1rNize344L1yV5vePSGUu2n3RU6m
+**Nosana Deployment Proof:**: https://2ycnv9zov3plfamfzmaxkt3qq7lkdengzgskuvrtkc5m.node.k8s.prd.nos.ci/
+
 ---
 
 ## 📦 Project Overview
@@ -80,18 +95,21 @@ mastra-chess/
 ## 🧠 AI Agent Personalities
 
 ### **1. The Strategic Agent ("The Architect")**
+
 - **Philosophy**: Long-term positional mastery through accumulated advantages
 - **Strengths**: Pawn structure optimization, space control, piece coordination
 - **Style**: Methodical, patient, converts small edges into decisive wins
 - **Best Against**: Opponents who lack a clear plan
 
 ### **2. The Aggressive Agent ("The Berserker")**
+
 - **Philosophy**: Relentless king attacks and tactical aggression
 - **Strengths**: Forcing sequences, sacrifices, initiative maintenance
 - **Style**: Bold, calculated risks with concrete tactical justification
 - **Best Against**: Passive or defensive opponents
 
 ### **3. The Defensive Agent ("The Fortress")**
+
 - **Philosophy**: Prophylactic defense and solid structures
 - **Strengths**: King safety, threat prevention, endgame technique
 - **Style**: Transforms difficult positions into impenetrable fortresses
@@ -103,8 +121,8 @@ mastra-chess/
 
 ### **Prerequisites**
 
-- **Bun** 1.0+ ([install](https://bun.sh))
-- **Node.js** 20+ (alternative to Bun)
+- **Bun** 1.3.0([install](https://bun.sh))
+- **Node.js** 23+ (alternative to Bun)
 - **Docker** (for containerized deployment)
 - **Git**
 
@@ -151,17 +169,20 @@ MODEL_NAME_AT_ENDPOINT=qwen3:8b
 #### **LLM Endpoint Options**
 
 **Option 1: Shared Nosana Endpoint (Easiest)**
+
 - Uses the free shared endpoint hosted on Nosana's decentralized network
 - No local setup required
 - Ideal for development and testing
 
 **Option 2: Local Ollama**
+
 1. Install Ollama: `curl -fsSL https://ollama.com/install.sh | sh`
 2. Pull the model: `ollama pull qwen3:8b`
 3. Start the service: `ollama serve`
 4. Update `.env` to point to `http://127.0.0.1:11434/api`
 
 **Option 3: Nosana Production Deployment**
+
 - Uses dynamic endpoint injection via Nosana job definition
 - Environment variables are automatically configured
 - See **Nosana Deployment** section below
@@ -174,7 +195,7 @@ MODEL_NAME_AT_ENDPOINT=qwen3:8b
 
 ```bash
 # Start the Next.js development server
-bun run dev         # Runs on http://localhost:3000
+bun run dev:ui        # Runs on http://localhost:3000
 
 # Start the Mastra agent playground (optional)
 bun run dev:agent   # Runs on http://localhost:4111
@@ -183,7 +204,7 @@ bun run dev:agent   # Runs on http://localhost:4111
 ### **Available Scripts**
 
 ```bash
-bun run dev         # Start Next.js dev server
+bun run dev:ui         # Start Next.js dev server
 bun run dev:agent   # Start Mastra agent playground
 bun run build       # Production build
 bun run start       # Start production server
@@ -242,12 +263,14 @@ docker push alcyone864/agent-challenge:latest
 The project uses a **multi-stage Docker build** for optimal performance:
 
 **Stage 1: Build**
+
 - Uses `oven/bun:1` base image
 - Installs dependencies with `--frozen-lockfile` for reproducibility
 - Copies `.env` file for build-time configuration
 - Compiles Next.js application with `bun run build`
 
 **Stage 2: Runtime**
+
 - Lightweight runtime environment
 - Creates non-root user for security (`appuser`)
 - Pre-creates `.config` directory for Mastra framework
@@ -255,6 +278,7 @@ The project uses a **multi-stage Docker build** for optimal performance:
 - Runs production server with `bun run start`
 
 **Key Features**:
+
 - ✅ Multi-stage builds reduce final image size
 - ✅ Environment variables baked in (`.env` copied)
 - ✅ Non-root user for enhanced security
@@ -282,7 +306,7 @@ The project uses a **multi-stage Docker build** for optimal performance:
     {
       "id": "agents",
       "args": {
-        "image": "alcyone864/agent-challenge:latest",
+        "image": "your-image-name/agent-challenge:latest",
         "expose": 3000,
         "env": {
           "NOS_OLLAMA_API_URL": "http://%%ops.ollama.host%%:11434/api",
@@ -336,24 +360,6 @@ The project uses a **multi-stage Docker build** for optimal performance:
    - Monitor deployment status
    - Access your app via the provided Nosana URL
 
-### **How Nosana Deployment Works**
-
-The deployment uses a **two-container orchestration**:
-
-1. **Ollama Container** (`ollama` op):
-   - Runs local GPU-accelerated Ollama instance
-   - Pre-loads `qwen3:8b` model from Nosana's S3 storage
-   - Exposes local endpoint at `http://%%ops.ollama.host%%:11434/api`
-
-2. **Chess App Container** (`agents` op):
-   - Depends on `ollama` container (waits for it to be ready)
-   - Connects to local Ollama via dynamic host injection
-   - Exposes port `3000` for web access
-
-**Environment Variable Injection**:
-- `%%ops.ollama.host%%` is dynamically replaced with the actual Ollama container hostname
-- This enables secure, internal network communication between containers
-
 ---
 
 ## 🎮 How to Use
@@ -361,6 +367,7 @@ The deployment uses a **two-container orchestration**:
 ### **Game Modes**
 
 **Human vs AI**
+
 1. Select "Human vs AI" mode
 2. Choose your color (White/Black)
 3. Select opponent AI personality (Strategic/Aggressive/Defensive)
@@ -368,6 +375,7 @@ The deployment uses a **two-container orchestration**:
 5. View AI reasoning in real-time
 
 **AI vs AI**
+
 1. Select "AI vs AI" mode
 2. Choose AI personalities for White and Black
 3. Click "Start Game" or enable "Autoplay"
@@ -376,6 +384,7 @@ The deployment uses a **two-container orchestration**:
 ### **Understanding AI Reasoning**
 
 Each move displays the agent's reasoning:
+
 - **Strategic**: "Centralizing knight to d5 outpost, controls key squares"
 - **Aggressive**: "Bxh7+ sacrifices bishop for devastating king attack"
 - **Defensive**: "Rf8 doubles rooks, pressures f-file weakness"
@@ -385,6 +394,7 @@ Each move displays the agent's reasoning:
 ## 🛠️ Technology Stack
 
 ### **Frontend**
+
 - **Next.js 15** - React framework with App Router
 - **TailwindCSS 4** - Utility-first styling
 - **TypeScript** - Type-safe development
@@ -392,12 +402,14 @@ Each move displays the agent's reasoning:
 - **Lucide React** - Icon library
 
 ### **Backend**
+
 - **Mastra Framework** - Multi-agent orchestration
 - **Ollama** - Local LLM inference (Qwen3:8b)
 - **Bun** - Fast JavaScript runtime
 - **Zod** - Schema validation
 
 ### **Infrastructure**
+
 - **Docker** - Containerization
 - **Nosana Network** - Decentralized GPU compute
 - **Vercel** (optional) - Alternative deployment
@@ -409,6 +421,7 @@ Each move displays the agent's reasoning:
 ### **Manual Testing Checklist**
 
 **Basic Functionality**:
+
 - [ ] Board renders correctly with all pieces
 - [ ] Drag-and-drop moves work for human player
 - [ ] Illegal moves are rejected
@@ -416,12 +429,14 @@ Each move displays the agent's reasoning:
 - [ ] Game over states (checkmate/stalemate/draw) display properly
 
 **AI Testing**:
+
 - [ ] AI agents respond within 5-10 seconds
 - [ ] Move reasoning is displayed
 - [ ] AI makes legal moves consistently
 - [ ] Different agent personalities show distinct playstyles
 
 **Docker Testing**:
+
 ```bash
 # Build and test locally
 docker build -t test-chess .
@@ -447,6 +462,7 @@ curl -X POST http://localhost:3000/api/chess-move \
 ### **Common Issues**
 
 **Issue**: AI not responding / timeout errors
+
 ```bash
 # Check if Ollama is running
 curl http://localhost:11434/api/tags
@@ -459,12 +475,14 @@ docker logs chess-ai
 ```
 
 **Issue**: `.env` file not loaded in Docker
+
 ```dockerfile
 # Ensure this line exists in Dockerfile:
 COPY .env .env
 ```
 
 **Issue**: Port conflicts
+
 ```bash
 # Check what's using port 3000
 lsof -i :3000
@@ -474,6 +492,7 @@ docker run -p 8080:3000 -p 8111:4111 alcyone864/agent-challenge:latest
 ```
 
 **Issue**: Chess pieces not rendering
+
 - Ensure `/public/pieces/` directory contains SVG files
 - Check browser console for 404 errors
 - Verify build process includes static assets
@@ -487,6 +506,7 @@ docker run -p 8080:3000 -p 8111:4111 alcyone864/agent-challenge:latest
 Generates AI move for current position.
 
 **Request Body**:
+
 ```json
 {
   "agentType": "strategic" | "aggressive" | "defensive",
@@ -505,6 +525,7 @@ Generates AI move for current position.
 ```
 
 **Response**:
+
 ```json
 {
   "success": true,
@@ -515,6 +536,7 @@ Generates AI move for current position.
 ```
 
 **Error Response**:
+
 ```json
 {
   "success": false,
@@ -550,20 +572,6 @@ This project is built for the **Nosana Builders Challenge #3** and is open-sourc
 
 ---
 
-## 🏆 Challenge Submission Details
-
-**Project Name**: MastraChess AI Tournament  
-**Developer**: [Your Name]  
-**Repository**: [https://github.com/alcyonect-coder/agent-challenge](https://github.com/alcyonect-coder/agent-challenge)  
-**Docker Image**: `alcyone864/agent-challenge:latest`  
-**Discord**: [Your Discord Handle]  
-**Video Demo**: [YouTube/Loom Link]  
-**Twitter**: [@YourHandle]  
-**Solana Address**: [Your Wallet Address]  
-**Nosana Deployment**: [Live URL]  
-
----
-
 ## 🙏 Acknowledgments
 
 - **Nosana** - For providing decentralized GPU compute infrastructure
@@ -574,14 +582,6 @@ This project is built for the **Nosana Builders Challenge #3** and is open-sourc
 
 ---
 
-## 📞 Support
-
-- **Discord**: [Nosana Discord](https://discord.com/channels/236263424676331521/1354391113028337664)
-- **Issues**: [GitHub Issues](https://github.com/alcyonect-coder/agent-challenge/issues)
-- **Email**: [Your Email]
-
----
-
 **Built with ❤️ for the Nosana Builders Challenge**
 
-*"Strategy requires patience, but victory rewards those who see furthest."* - The Strategic Agent
+_"Strategy requires patience, but victory rewards those who see furthest."_ - The Strategic Agent
